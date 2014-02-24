@@ -39,7 +39,7 @@
 
  Portions Copyrighted 2011 Gephi Consortium.
  */
-package org.gephi.plugins.forceAtlas2_1D;
+package org.gephi.plugins.forceAtlas2;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,8 +51,8 @@ import org.gephi.graph.api.Edge;
 import org.gephi.graph.api.Graph;
 import org.gephi.graph.api.GraphModel;
 import org.gephi.graph.api.Node;
-import org.gephi.plugins.forceAtlas2_1D.ForceFactory.AttractionForce;
-import org.gephi.plugins.forceAtlas2_1D.ForceFactory.RepulsionForce;
+import org.gephi.plugins.forceAtlas2.ForceFactory.AttractionForce;
+import org.gephi.plugins.forceAtlas2.ForceFactory.RepulsionForce;
 import org.gephi.layout.spi.Layout;
 import org.gephi.layout.spi.LayoutBuilder;
 import org.gephi.layout.spi.LayoutProperty;
@@ -65,11 +65,11 @@ import org.openide.util.NbBundle;
  *
  * @author Mathieu Jacomy
  */
-public class ForceAtlas2 implements Layout {
+public class ForceAtlas2_1D implements Layout {
 
     private GraphModel graphModel;
     private Graph graph;
-    private final ForceAtlas2Builder layoutBuilder;
+    private final ForceAtlas2_1DBuilder layoutBuilder;
     private double edgeWeightInfluence;
     private double jitterTolerance;
     private double scalingRatio;
@@ -87,7 +87,7 @@ public class ForceAtlas2 implements Layout {
     double outboundAttCompensation = 1;
     private ExecutorService pool;
 
-    public ForceAtlas2(ForceAtlas2Builder layoutBuilder) {
+    public ForceAtlas2_1D(ForceAtlas2_1DBuilder layoutBuilder) {
         this.layoutBuilder = layoutBuilder;
         this.threadCount = Math.min(4, Math.max(1, Runtime.getRuntime().availableProcessors() - 1));
     }
@@ -294,7 +294,7 @@ public class ForceAtlas2 implements Layout {
                     this, Double.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.scalingRatio.name"),
                     FORCEATLAS2_TUNING,
-                    "ForceAtlas2.scalingRatio.name",
+                    "ForceAtlas2_1D.scalingRatio.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.scalingRatio.desc"),
                     "getScalingRatio", "setScalingRatio"));
 
@@ -302,7 +302,7 @@ public class ForceAtlas2 implements Layout {
                     this, Boolean.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.strongGravityMode.name"),
                     FORCEATLAS2_TUNING,
-                    "ForceAtlas2.strongGravityMode.name",
+                    "ForceAtlas2_1D.strongGravityMode.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.strongGravityMode.desc"),
                     "isStrongGravityMode", "setStrongGravityMode"));
 
@@ -310,7 +310,7 @@ public class ForceAtlas2 implements Layout {
                     this, Double.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.gravity.name"),
                     FORCEATLAS2_TUNING,
-                    "ForceAtlas2.gravity.name",
+                    "ForceAtlas2_1D.gravity.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.gravity.desc"),
                     "getGravity", "setGravity"));
 
@@ -318,7 +318,7 @@ public class ForceAtlas2 implements Layout {
                     this, Boolean.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.distributedAttraction.name"),
                     FORCEATLAS2_BEHAVIOR,
-                    "ForceAtlas2.distributedAttraction.name",
+                    "ForceAtlas2_1D.distributedAttraction.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.distributedAttraction.desc"),
                     "isOutboundAttractionDistribution", "setOutboundAttractionDistribution"));
 
@@ -326,7 +326,7 @@ public class ForceAtlas2 implements Layout {
                     this, Boolean.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.linLogMode.name"),
                     FORCEATLAS2_BEHAVIOR,
-                    "ForceAtlas2.linLogMode.name",
+                    "ForceAtlas2_1D.linLogMode.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.linLogMode.desc"),
                     "isLinLogMode", "setLinLogMode"));
 
@@ -334,7 +334,7 @@ public class ForceAtlas2 implements Layout {
                     this, Boolean.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.adjustSizes.name"),
                     FORCEATLAS2_BEHAVIOR,
-                    "ForceAtlas2.adjustSizes.name",
+                    "ForceAtlas2_1D.adjustSizes.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.adjustSizes.desc"),
                     "isAdjustSizes", "setAdjustSizes"));
 
@@ -342,7 +342,7 @@ public class ForceAtlas2 implements Layout {
                     this, Double.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.edgeWeightInfluence.name"),
                     FORCEATLAS2_BEHAVIOR,
-                    "ForceAtlas2.edgeWeightInfluence.name",
+                    "ForceAtlas2_1D.edgeWeightInfluence.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.edgeWeightInfluence.desc"),
                     "getEdgeWeightInfluence", "setEdgeWeightInfluence"));
 
@@ -350,7 +350,7 @@ public class ForceAtlas2 implements Layout {
                     this, Double.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.jitterTolerance.name"),
                     FORCEATLAS2_PERFORMANCE,
-                    "ForceAtlas2.jitterTolerance.name",
+                    "ForceAtlas2_1D.jitterTolerance.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.jitterTolerance.desc"),
                     "getJitterTolerance", "setJitterTolerance"));
 
@@ -358,7 +358,7 @@ public class ForceAtlas2 implements Layout {
                     this, Boolean.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.barnesHutOptimization.name"),
                     FORCEATLAS2_PERFORMANCE,
-                    "ForceAtlas2.barnesHutOptimization.name",
+                    "ForceAtlas2_1D.barnesHutOptimization.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.barnesHutOptimization.desc"),
                     "isBarnesHutOptimize", "setBarnesHutOptimize"));
 
@@ -366,7 +366,7 @@ public class ForceAtlas2 implements Layout {
                     this, Double.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.barnesHutTheta.name"),
                     FORCEATLAS2_PERFORMANCE,
-                    "ForceAtlas2.barnesHutTheta.name",
+                    "ForceAtlas2_1D.barnesHutTheta.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.barnesHutTheta.desc"),
                     "getBarnesHutTheta", "setBarnesHutTheta"));
 
@@ -374,7 +374,7 @@ public class ForceAtlas2 implements Layout {
                     this, Integer.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.threads.name"),
                     FORCEATLAS2_THREADS,
-                    "ForceAtlas2.threads.name",
+                    "ForceAtlas2_1D.threads.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.threads.desc"),
                     "getThreadsCount", "setThreadsCount"));
 

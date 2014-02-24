@@ -39,7 +39,7 @@
 
  Portions Copyrighted 2011 Gephi Consortium.
  */
-package org.gephi.plugins.forceAtlas2_1D;
+package org.gephi.plugins.forceAtlas2;
 
 import org.gephi.graph.api.Node;
 

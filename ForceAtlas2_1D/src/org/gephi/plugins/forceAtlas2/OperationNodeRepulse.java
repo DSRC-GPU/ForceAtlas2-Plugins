@@ -39,10 +39,10 @@ Contributor(s):
 
 Portions Copyrighted 2011 Gephi Consortium.
  */
-package org.gephi.plugins.forceAtlas2_1D;
+package org.gephi.plugins.forceAtlas2;
 
 import org.gephi.graph.api.Node;
-import org.gephi.plugins.forceAtlas2_1D.ForceFactory.RepulsionForce;
+import org.gephi.plugins.forceAtlas2.ForceFactory.RepulsionForce;
 
 /**
  *

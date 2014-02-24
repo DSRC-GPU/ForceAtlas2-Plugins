@@ -1,5 +1,5 @@
 Manifest-Version: 1.0
 OpenIDE-Module: org.gephi.plugins.forceAtlas2_1D
-OpenIDE-Module-Localizing-Bundle: org/gephi/plugins/forceAtlas2_1D/Bundle.properties
+OpenIDE-Module-Localizing-Bundle: org/gephi/plugins/forceAtlas2/Bundle.properties
 OpenIDE-Module-Specification-Version: 1.0
 
