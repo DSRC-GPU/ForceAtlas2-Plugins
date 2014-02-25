@@ -104,7 +104,7 @@ public class ForceAtlas2_EdgeWeight implements Layout {
 
                         for (Edge e : graphModel.getGraph().getEdges()) {
                             if (visibleGraph.contains(e) == false) {
-                                e.setWeight((float) 0);
+                                e.setWeight((float) 1);
                                 continue;
                             }
 
