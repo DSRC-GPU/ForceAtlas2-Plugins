@@ -1,33 +1,31 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-
 package org.gephi.plugins.forceAtlas2;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.gephi.graph.api.Edge;
+import org.gephi.graph.api.EdgeIterable;
 import org.gephi.graph.api.Graph;
+import org.gephi.graph.api.GraphListener;
 import org.gephi.graph.api.GraphModel;
 import org.gephi.graph.api.Node;
 import org.gephi.layout.spi.Layout;
 import org.gephi.layout.spi.LayoutBuilder;
 import org.gephi.layout.spi.LayoutProperty;
+import org.gephi.timeline.api.TimelineController;
+import org.gephi.timeline.api.TimelineModelEvent;
+import org.gephi.timeline.api.TimelineModelListener;
 import org.openide.util.Exceptions;
+import org.openide.util.Lookup;
 import org.openide.util.NbBundle;
 
-/**
- *
- * @author vlad
- */
 public class ForceAtlas2_EdgeWeight implements Layout {
-     private GraphModel graphModel;
+
+    private GraphModel graphModel;
     private Graph graph;
     private final ForceAtlas2_EdgeWeightBuilder layoutBuilder;
     private double edgeWeightInfluence;
@@ -46,10 +44,23 @@ public class ForceAtlas2_EdgeWeight implements Layout {
     private Region rootRegion;
     double outboundAttCompensation = 1;
     private ExecutorService pool;
+    private GraphListener graphListener;
+    private TimelineController timelineControler;
+    private TimelineModelListener timelineModelListener;
+    private Integer edgeWeightWindow;
+    private double[] lastInterval = null;
 
     public ForceAtlas2_EdgeWeight(ForceAtlas2_EdgeWeightBuilder layoutBuilder) {
         this.layoutBuilder = layoutBuilder;
         this.threadCount = Math.min(4, Math.max(1, Runtime.getRuntime().availableProcessors() - 1));
+    }
+
+    private EdgeIterable getVisibleEdges() {
+        if (graphModel == null) {
+            return null;
+        }
+
+        return graphModel.getGraphVisible().getEdges();
     }
 
     @Override
@@ -57,6 +68,7 @@ public class ForceAtlas2_EdgeWeight implements Layout {
         speed = 1.;
 
         graph = graphModel.getGraphVisible();
+        timelineControler = Lookup.getDefault().lookup(TimelineController.class);
 
         graph.readLock();
         Node[] nodes = graph.getNodes().toArray();
@@ -74,6 +86,43 @@ public class ForceAtlas2_EdgeWeight implements Layout {
             nLayout.dx = 0;
             nLayout.dy = 0;
         }
+
+        timelineModelListener = new TimelineModelListener() {
+
+            @Override
+            public void timelineModelChanged(TimelineModelEvent event) {
+                switch (event.getEventType()) {
+                    case INTERVAL:
+                        double interval[] = (double[]) event.getData();
+                        if (lastInterval == null) {
+                            lastInterval = Arrays.copyOf(interval, interval.length);
+                            return;
+                        }
+
+                        float weight = (float) Math.abs(interval[1] - lastInterval[1]);
+                        Graph visibleGraph = graphModel.getGraphVisible();
+
+                        for (Edge e : graphModel.getGraph().getEdges()) {
+                            if (visibleGraph.contains(e) == false) {
+                                e.setWeight((float) 0);
+                                continue;
+                            }
+
+                            if (lastInterval[0] > interval[0] && lastInterval[1] > interval[1]) {
+                                float newWeight = e.getWeight() - weight;
+                                e.setWeight(newWeight <= 1 ? 1 : newWeight);
+                            } else {
+                                e.setWeight(Math.min(weight + e.getWeight(), edgeWeightWindow));
+                            }
+                        }
+
+                        lastInterval = Arrays.copyOf(interval, interval.length);
+                        break;
+                }
+            }
+        };
+
+        timelineControler.addListener(timelineModelListener);
 
         pool = Executors.newFixedThreadPool(threadCount);
         currentThreadCount = threadCount;
@@ -146,6 +195,7 @@ public class ForceAtlas2_EdgeWeight implements Layout {
 
         // Attraction
         ForceFactory.AttractionForce Attraction = ForceFactory.builder.buildAttraction(isLinLogMode(), isOutboundAttractionDistribution(), isAdjustSizes(), 1 * ((isOutboundAttractionDistribution()) ? (outboundAttCompensation) : (1)));
+
         if (getEdgeWeightInfluence() == 0) {
             for (Edge e : edges) {
                 Attraction.apply(e.getSource(), e.getTarget(), 1);
@@ -165,7 +215,7 @@ public class ForceAtlas2_EdgeWeight implements Layout {
         double totalEffectiveTraction = 0d;  // Hom much useful movement
         for (Node n : nodes) {
             ForceAtlas2LayoutData nLayout = n.getNodeData().getLayoutData();
-            if (!n.getNodeData().isFixed()) { 
+            if (!n.getNodeData().isFixed()) {
                 double swinging = Math.sqrt(Math.pow(nLayout.old_dx - nLayout.dx, 2) + Math.pow(nLayout.old_dy - nLayout.dy, 2));
                 totalSwinging += nLayout.mass * swinging;   // If the node has a burst change of direction, then it's not converging.
                 totalEffectiveTraction += nLayout.mass * 0.5 * Math.sqrt(Math.pow(nLayout.old_dx + nLayout.dx, 2) + Math.pow(nLayout.old_dy + nLayout.dy, 2));
@@ -187,7 +237,6 @@ public class ForceAtlas2_EdgeWeight implements Layout {
 
                     // Adaptive auto-speed: the speed of each node is lowered
                     // when the node swings.
-                    
                     double swinging = Math.sqrt((nLayout.old_dx - nLayout.dx) * (nLayout.old_dx - nLayout.dx) + (nLayout.old_dy - nLayout.dy) * (nLayout.old_dy - nLayout.dy));
                     double factor = 0.1 * speed / (1f + speed * Math.sqrt(swinging));
 
@@ -208,7 +257,6 @@ public class ForceAtlas2_EdgeWeight implements Layout {
 
                     // Adaptive auto-speed: the speed of each node is lowered
                     // when the node swings.
-                    
                     double swinging = Math.sqrt((nLayout.old_dx - nLayout.dx) * (nLayout.old_dx - nLayout.dx) + (nLayout.old_dy - nLayout.dy) * (nLayout.old_dy - nLayout.dy));
                     //double factor = speed / (1f + Math.sqrt(speed * swinging));
                     double factor = speed / (1f + speed * Math.sqrt(swinging));
@@ -219,7 +267,6 @@ public class ForceAtlas2_EdgeWeight implements Layout {
                     n.getNodeData().setX((float) x);
                     n.getNodeData().setY((float) y);
 
-                    
                 }
             }
         }
@@ -237,12 +284,14 @@ public class ForceAtlas2_EdgeWeight implements Layout {
             n.getNodeData().setLayoutData(null);
         }
         pool.shutdown();
+        timelineControler.removeListener(timelineModelListener);
         graph.readUnlockAll();
     }
 
     @Override
     public LayoutProperty[] getProperties() {
         List<LayoutProperty> properties = new ArrayList<LayoutProperty>();
+        final String FORCEATLAS2_EDGEWEIGHTS = NbBundle.getMessage(getClass(), "ForceAtlas2.edgeweights");
         final String FORCEATLAS2_TUNING = NbBundle.getMessage(getClass(), "ForceAtlas2.tuning");
         final String FORCEATLAS2_BEHAVIOR = NbBundle.getMessage(getClass(), "ForceAtlas2.behavior");
         final String FORCEATLAS2_PERFORMANCE = NbBundle.getMessage(getClass(), "ForceAtlas2.performance");
@@ -250,10 +299,18 @@ public class ForceAtlas2_EdgeWeight implements Layout {
 
         try {
             properties.add(LayoutProperty.createProperty(
+                    this, Integer.class,
+                    NbBundle.getMessage(getClass(), "ForceAtlas2_EdgeWeight.window.name"),
+                    FORCEATLAS2_EDGEWEIGHTS,
+                    "ForceAtlas2_EdgeWeight.window.name",
+                    NbBundle.getMessage(getClass(), "ForceAtlas2_EdgeWeight.window.desc"),
+                    "getEdgeWeightWindow", "setEdgeWeightWindow"));
+
+            properties.add(LayoutProperty.createProperty(
                     this, Double.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.scalingRatio.name"),
                     FORCEATLAS2_TUNING,
-                    "ForceAtlas2_1D.scalingRatio.name",
+                    "ForceAtlas2.scalingRatio.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.scalingRatio.desc"),
                     "getScalingRatio", "setScalingRatio"));
 
@@ -261,7 +318,7 @@ public class ForceAtlas2_EdgeWeight implements Layout {
                     this, Boolean.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.strongGravityMode.name"),
                     FORCEATLAS2_TUNING,
-                    "ForceAtlas2_1D.strongGravityMode.name",
+                    "ForceAtlas2.strongGravityMode.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.strongGravityMode.desc"),
                     "isStrongGravityMode", "setStrongGravityMode"));
 
@@ -269,7 +326,7 @@ public class ForceAtlas2_EdgeWeight implements Layout {
                     this, Double.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.gravity.name"),
                     FORCEATLAS2_TUNING,
-                    "ForceAtlas2_1D.gravity.name",
+                    "ForceAtlas2.gravity.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.gravity.desc"),
                     "getGravity", "setGravity"));
 
@@ -277,7 +334,7 @@ public class ForceAtlas2_EdgeWeight implements Layout {
                     this, Boolean.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.distributedAttraction.name"),
                     FORCEATLAS2_BEHAVIOR,
-                    "ForceAtlas2_1D.distributedAttraction.name",
+                    "ForceAtlas2.distributedAttraction.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.distributedAttraction.desc"),
                     "isOutboundAttractionDistribution", "setOutboundAttractionDistribution"));
 
@@ -285,7 +342,7 @@ public class ForceAtlas2_EdgeWeight implements Layout {
                     this, Boolean.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.linLogMode.name"),
                     FORCEATLAS2_BEHAVIOR,
-                    "ForceAtlas2_1D.linLogMode.name",
+                    "ForceAtlas2.linLogMode.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.linLogMode.desc"),
                     "isLinLogMode", "setLinLogMode"));
 
@@ -293,15 +350,15 @@ public class ForceAtlas2_EdgeWeight implements Layout {
                     this, Boolean.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.adjustSizes.name"),
                     FORCEATLAS2_BEHAVIOR,
-                    "ForceAtlas2_1D.adjustSizes.name",
+                    "ForceAtlas2.adjustSizes.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.adjustSizes.desc"),
                     "isAdjustSizes", "setAdjustSizes"));
 
             properties.add(LayoutProperty.createProperty(
                     this, Double.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.edgeWeightInfluence.name"),
-                    FORCEATLAS2_BEHAVIOR,
-                    "ForceAtlas2_1D.edgeWeightInfluence.name",
+                    FORCEATLAS2_EDGEWEIGHTS,
+                    "ForceAtlas2.edgeWeightInfluence.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.edgeWeightInfluence.desc"),
                     "getEdgeWeightInfluence", "setEdgeWeightInfluence"));
 
@@ -309,7 +366,7 @@ public class ForceAtlas2_EdgeWeight implements Layout {
                     this, Double.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.jitterTolerance.name"),
                     FORCEATLAS2_PERFORMANCE,
-                    "ForceAtlas2_1D.jitterTolerance.name",
+                    "ForceAtlas2.jitterTolerance.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.jitterTolerance.desc"),
                     "getJitterTolerance", "setJitterTolerance"));
 
@@ -317,7 +374,7 @@ public class ForceAtlas2_EdgeWeight implements Layout {
                     this, Boolean.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.barnesHutOptimization.name"),
                     FORCEATLAS2_PERFORMANCE,
-                    "ForceAtlas2_1D.barnesHutOptimization.name",
+                    "ForceAtlas2.barnesHutOptimization.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.barnesHutOptimization.desc"),
                     "isBarnesHutOptimize", "setBarnesHutOptimize"));
 
@@ -325,7 +382,7 @@ public class ForceAtlas2_EdgeWeight implements Layout {
                     this, Double.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.barnesHutTheta.name"),
                     FORCEATLAS2_PERFORMANCE,
-                    "ForceAtlas2_1D.barnesHutTheta.name",
+                    "ForceAtlas2.barnesHutTheta.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.barnesHutTheta.desc"),
                     "getBarnesHutTheta", "setBarnesHutTheta"));
 
@@ -333,7 +390,7 @@ public class ForceAtlas2_EdgeWeight implements Layout {
                     this, Integer.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.threads.name"),
                     FORCEATLAS2_THREADS,
-                    "ForceAtlas2_1D.threads.name",
+                    "ForceAtlas2.threads.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.threads.desc"),
                     "getThreadsCount", "setThreadsCount"));
 
@@ -341,7 +398,8 @@ public class ForceAtlas2_EdgeWeight implements Layout {
             e.printStackTrace();
         }
 
-        return properties.toArray(new LayoutProperty[0]);
+        return properties.toArray(
+                new LayoutProperty[0]);
     }
 
     @Override
@@ -360,6 +418,8 @@ public class ForceAtlas2_EdgeWeight implements Layout {
         }
         setStrongGravityMode(false);
         setGravity(1.);
+
+        setEdgeWeightWindow(5);
 
         // Behavior
         setOutboundAttractionDistribution(false);
@@ -486,5 +546,13 @@ public class ForceAtlas2_EdgeWeight implements Layout {
 
     public void setBarnesHutOptimize(Boolean barnesHutOptimize) {
         this.barnesHutOptimize = barnesHutOptimize;
+    }
+
+    public void setEdgeWeightWindow(Integer edgeWeightWindow) {
+        this.edgeWeightWindow = edgeWeightWindow;
+    }
+
+    public Integer getEdgeWeightWindow() {
+        return this.edgeWeightWindow;
     }
 }
