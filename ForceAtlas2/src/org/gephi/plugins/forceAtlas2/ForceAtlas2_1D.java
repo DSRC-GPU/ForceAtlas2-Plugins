@@ -41,23 +41,8 @@
  */
 package org.gephi.plugins.forceAtlas2;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import org.gephi.graph.api.Edge;
 import org.gephi.graph.api.Graph;
-import org.gephi.graph.api.GraphModel;
 import org.gephi.graph.api.Node;
-import org.gephi.plugins.forceAtlas2.ForceFactory.AttractionForce;
-import org.gephi.plugins.forceAtlas2.ForceFactory.RepulsionForce;
-import org.gephi.layout.spi.Layout;
-import org.gephi.layout.spi.LayoutBuilder;
-import org.gephi.layout.spi.LayoutProperty;
-import org.openide.util.Exceptions;
-import org.openide.util.NbBundle;
 
 /**
  * ForceAtlas 2 Layout, manages each step of the computations.
@@ -66,11 +51,8 @@ import org.openide.util.NbBundle;
  */
 public class ForceAtlas2_1D extends ForceAtlas2 {
 
-    private final ForceAtlas2_1DBuilder layoutBuilder;
-
     public ForceAtlas2_1D(ForceAtlas2_1DBuilder layoutBuilder) {
-        super(null);
-        this.layoutBuilder = layoutBuilder;
+        super(layoutBuilder);
     }
 
     @Override
@@ -83,11 +65,4 @@ public class ForceAtlas2_1D extends ForceAtlas2 {
             n.getNodeData().setY((float) 0);
         }
     }
-
-    @Override
-    public LayoutBuilder getBuilder() {
-        return layoutBuilder;
-    }
-    
-
 }
