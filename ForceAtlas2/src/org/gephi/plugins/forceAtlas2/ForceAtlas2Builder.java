@@ -49,13 +49,10 @@ import org.gephi.layout.spi.LayoutUI;
 import org.openide.util.NbBundle;
 import org.openide.util.lookup.ServiceProvider;
 
-/**
- * Layout Builder
- * @author Mathieu Jacomy
- */
+@ServiceProvider(service = LayoutBuilder.class)
 public class ForceAtlas2Builder implements LayoutBuilder {
 
-    private ForceAtlas2UI ui = new ForceAtlas2UI();
+    private final ForceAtlas2UI ui = new ForceAtlas2UI();
 
     @Override
     public String getName() {
