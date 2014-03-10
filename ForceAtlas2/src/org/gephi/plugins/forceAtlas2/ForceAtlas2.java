@@ -48,6 +48,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.gephi.data.attributes.api.AttributeController;
+import org.gephi.data.attributes.api.AttributeOrigin;
+import org.gephi.data.attributes.api.AttributeTable;
+import org.gephi.data.attributes.api.AttributeType;
+import org.gephi.data.attributes.type.FloatList;
 import org.gephi.graph.api.Edge;
 import org.gephi.graph.api.Graph;
 import org.gephi.graph.api.GraphModel;
@@ -63,7 +67,6 @@ import org.openide.util.Exceptions;
 import org.openide.util.Lookup;
 import org.openide.util.NbBundle;
 
-
 /**
  * ForceAtlas 2 Layout, manages each step of the computations.
  *
@@ -73,7 +76,6 @@ public class ForceAtlas2 implements Layout {
 
     private GraphModel graphModel;
     private Graph graph;
-    private final ForceAtlas2Builder layoutBuilder;
     private double edgeWeightInfluence;
     private double jitterTolerance;
     private double scalingRatio;
@@ -89,34 +91,59 @@ public class ForceAtlas2 implements Layout {
     private int numIterations;
     private int currentThreadCount;
     private Region rootRegion;
-    private AttributeController atributeController;
-    double outboundAttCompensation = 1;
     private ExecutorService pool;
+    double outboundAttCompensation = 1;
+
     private final TimelineControllerRunner timelineControllerRunner;
-    private ForceAtlas2Runner forceAtlas2Runner;
+    private final AttributeController attributeController;
+    private final ForceAtlas2Builder layoutBuilder;
 
     public ForceAtlas2(ForceAtlas2Builder layoutBuilder) {
         this.layoutBuilder = layoutBuilder;
         this.threadCount = Math.min(4, Math.max(1, Runtime.getRuntime().availableProcessors() - 1));
-        atributeController = Lookup.getDefault().lookup(AttributeController.class);
+
+        attributeController = Lookup.getDefault().lookup(AttributeController.class);
         timelineControllerRunner = Lookup.getDefault().lookup(TimelineControllerRunner.class);
-        forceAtlas2Runner = new ForceAtlas2Runner();
-        timelineControllerRunner.addRunner(forceAtlas2Runner);
+
+        timelineControllerRunner.addRunner(new ForceAtlas2Runner());
+
+        AttributeTable nodesTable = attributeController.getModel().getNodeTable();
+        if (nodesTable.hasColumn("Direction") == false) {
+            nodesTable.addColumn("Direction", AttributeType.LIST_FLOAT, AttributeOrigin.COMPUTED);
+        }
+
     }
-    
-    private class ForceAtlas2Runner implements TimelineModelRunner {
+
+    protected class ForceAtlas2Runner implements TimelineModelRunner {
 
         @Override
         public void run() {
+
             long i = 0;
             initAlgo();
-            while(canAlgo()) {
+            while (canAlgo()) {
                 goAlgo();
                 i++;
-                if (getNumIterations() == i)
+                if (getNumIterations() == i) {
                     break;
+                }
             }
             endAlgo();
+        }
+
+        @Override
+        public void init() {
+            if (graphModel == null) {
+                return;
+            }
+
+            for (Node n : graphModel.getGraph().getNodes()) {
+                n.getAttributes().setValue("Direction", new FloatList(new Float[]{-n.getNodeData().x(), -n.getNodeData().y()}));
+            }
+        }
+
+        @Override
+        public void end() {
         }
     }
 
@@ -125,7 +152,7 @@ public class ForceAtlas2 implements Layout {
         speed = 1.;
 
         graph = graphModel.getGraphVisible();
-                    
+
         graph.readLock();
         Node[] nodes = graph.getNodes().toArray();
 
@@ -142,19 +169,11 @@ public class ForceAtlas2 implements Layout {
             nLayout.dx = 0;
             nLayout.dy = 0;
         }
-        
-        /*
-        AttributeTable nodesTable = atributeController.getModel().getNodeTable();
-        if (nodesTable.hasColumn("Direction") == false) {
-            FloatList  defaultValue = new FloatList(new Float[]{0f, 0f});
-            nodesTable.addColumn("Direction", "Direction", AttributeType.LIST_FLOAT, AttributeOrigin.COMPUTED, defaultValue);
-        }
-        */
-        
+
         pool = Executors.newFixedThreadPool(threadCount);
         currentThreadCount = threadCount;
     }
-    
+
     public GraphModel getGraphModel() {
         return graphModel;
     }
@@ -245,7 +264,7 @@ public class ForceAtlas2 implements Layout {
         double totalEffectiveTraction = 0d;  // Hom much useful movement
         for (Node n : nodes) {
             ForceAtlas2LayoutData nLayout = n.getNodeData().getLayoutData();
-            if (!n.getNodeData().isFixed()) { 
+            if (!n.getNodeData().isFixed()) {
                 double swinging = Math.sqrt(Math.pow(nLayout.old_dx - nLayout.dx, 2) + Math.pow(nLayout.old_dy - nLayout.dy, 2));
                 totalSwinging += nLayout.mass * swinging;   // If the node has a burst change of direction, then it's not converging.
                 totalEffectiveTraction += nLayout.mass * 0.5 * Math.sqrt(Math.pow(nLayout.old_dx + nLayout.dx, 2) + Math.pow(nLayout.old_dy + nLayout.dy, 2));
@@ -267,7 +286,6 @@ public class ForceAtlas2 implements Layout {
 
                     // Adaptive auto-speed: the speed of each node is lowered
                     // when the node swings.
-                    
                     double swinging = Math.sqrt((nLayout.old_dx - nLayout.dx) * (nLayout.old_dx - nLayout.dx) + (nLayout.old_dy - nLayout.dy) * (nLayout.old_dy - nLayout.dy));
                     double factor = 0.1 * speed / (1f + speed * Math.sqrt(swinging));
 
@@ -288,7 +306,6 @@ public class ForceAtlas2 implements Layout {
 
                     // Adaptive auto-speed: the speed of each node is lowered
                     // when the node swings.
-                    
                     double swinging = Math.sqrt((nLayout.old_dx - nLayout.dx) * (nLayout.old_dx - nLayout.dx) + (nLayout.old_dy - nLayout.dy) * (nLayout.old_dy - nLayout.dy));
                     //double factor = speed / (1f + Math.sqrt(speed * swinging));
                     double factor = speed / (1f + speed * Math.sqrt(swinging));
@@ -299,7 +316,6 @@ public class ForceAtlas2 implements Layout {
                     n.getNodeData().setX((float) x);
                     n.getNodeData().setY((float) y);
 
-                    
                 }
             }
         }
@@ -314,6 +330,13 @@ public class ForceAtlas2 implements Layout {
     @Override
     public void endAlgo() {
         for (Node n : graph.getNodes()) {
+            FloatList vals = (FloatList) n.getAttributes().getValue("Direction");
+            if (vals == null) {
+                continue;
+            }
+            float x = vals.getItem(0) + n.getNodeData().x();
+            float y = vals.getItem(1) + n.getNodeData().y();
+            n.getAttributes().setValue("Direction", new FloatList(new Float[]{x, y}));
             n.getNodeData().setLayoutData(null);
         }
         pool.shutdown();
@@ -384,15 +407,14 @@ public class ForceAtlas2 implements Layout {
                     "ForceAtlas2.edgeWeightInfluence.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.edgeWeightInfluence.desc"),
                     "getEdgeWeightInfluence", "setEdgeWeightInfluence"));
-            
-              properties.add(LayoutProperty.createProperty(
+
+            properties.add(LayoutProperty.createProperty(
                     this, Integer.class,
                     NbBundle.getMessage(getClass(), "ForceAtlas2.numIterations.name"),
                     FORCEATLAS2_BEHAVIOR,
                     "ForceAtlas2.numnumIterations.name",
                     NbBundle.getMessage(getClass(), "ForceAtlas2.numIterations.desc"),
                     "getNumIterations", "setNumIterations"));
-
 
             properties.add(LayoutProperty.createProperty(
                     this, Double.class,
@@ -577,7 +599,7 @@ public class ForceAtlas2 implements Layout {
     public void setBarnesHutOptimize(Boolean barnesHutOptimize) {
         this.barnesHutOptimize = barnesHutOptimize;
     }
-    
+
     public int getNumIterations() {
         return numIterations;
     }
@@ -585,6 +607,5 @@ public class ForceAtlas2 implements Layout {
     public void setNumIterations(Integer numIterations) {
         this.numIterations = numIterations;
     }
-    
-    
+
 }

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project name="gephi-plugins-bootcamp" basedir=".">
+<project name="DSRC_GephiPlugins" basedir=".">
 
     <import file="nbproject/build-impl.xml"/>
     <echo message="Using harness folder ${harness.dir}"/>

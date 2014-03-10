@@ -5,35 +5,53 @@
  */
 package org.gephi.plugins.timeline;
 
+import java.lang.reflect.Field;
 import java.util.Iterator;
 import java.util.WeakHashMap;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import org.gephi.data.attributes.type.TimeInterval;
+import org.gephi.dynamic.DynamicModelImpl;
+import org.gephi.dynamic.api.DynamicController;
+import org.gephi.dynamic.api.DynamicModel;
+import org.gephi.dynamic.api.DynamicModelEvent;
+import org.gephi.filters.api.FilterController;
+import org.gephi.filters.api.FilterModel;
+import org.gephi.filters.plugin.dynamic.DynamicRangeBuilder;
+import org.gephi.filters.plugin.dynamic.DynamicRangeBuilder.DynamicRangeFilter;
+import org.gephi.filters.spi.FilterBuilder;
+import org.gephi.graph.api.GraphView;
 import org.gephi.timeline.TimelineControllerImpl;
 import org.gephi.timeline.TimelineModelImpl;
 import org.gephi.timeline.api.TimelineController;
 import org.gephi.timeline.api.TimelineModel;
 import org.gephi.timeline.api.TimelineModelEvent;
+import org.openide.util.Exceptions;
+import org.openide.util.Lookup;
 import org.openide.util.lookup.ServiceProvider;
 import org.openide.util.lookup.ServiceProviders;
 
-@ServiceProviders(value={
+/*
+@ServiceProviders(value = {
     @ServiceProvider(service = TimelineController.class, supersedes = {"org.gephi.timeline.TimelineControllerImpl"}),
     @ServiceProvider(service = TimelineControllerRunner.class)
 })
-
+*/
 public class TimelineControllerRunnerImpl extends TimelineControllerImpl implements TimelineControllerRunner {
-    private final WeakHashMap<Runnable, Void> runners;
+
+    private final WeakHashMap<TimelineModelRunner, Void> runners;
+    private FilterController filterController;
+    private FilterModel filterModel;
+    private DynamicController dynamicController;
     private ScheduledExecutorService playExecutor;
 
     public TimelineControllerRunnerImpl() {
         super();
-        this.setEnabled(true);
-        runners = new WeakHashMap<Runnable, Void>();
+        runners = new WeakHashMap<TimelineModelRunner, Void>();
     }
+
 
     private boolean playStep() {
         TimelineModel model = getModel();
@@ -77,21 +95,31 @@ public class TimelineControllerRunnerImpl extends TimelineControllerImpl impleme
             return false;
         }
     }
-    
+
     private synchronized void executeRunners() {
-        Iterator<Runnable> iterator = runners.keySet().iterator();
+        Iterator<TimelineModelRunner> iterator = runners.keySet().iterator();
         while (iterator.hasNext()) {
-            Runnable runnable = iterator.next();
+            TimelineModelRunner runnable = iterator.next();
             if (runnable != null) {
                 runnable.run();
             }
         }
     }
 
+    private synchronized void initRunners() {
+        Iterator<TimelineModelRunner> iterator = runners.keySet().iterator();
+        while (iterator.hasNext()) {
+            TimelineModelRunner runnable = iterator.next();
+            if (runnable != null) {
+                runnable.init();
+            }
+        }
+    }
+
     @Override
     public void startPlay() {
-         TimelineModelImpl model = (TimelineModelImpl) getModel();
-         
+        TimelineModelImpl model = (TimelineModelImpl) getModel();
+
         if (model != null && !model.isPlaying()) {
             model.setPlaying(true);
             playExecutor = Executors.newScheduledThreadPool(1, new ThreadFactory() {
@@ -101,40 +129,41 @@ public class TimelineControllerRunnerImpl extends TimelineControllerImpl impleme
                     return new Thread(r, "Timeline animator");
                 }
             });
-         
+            initRunners();
             playExecutor.scheduleAtFixedRate(new Runnable() {
 
                 @Override
                 public void run() {
-                    do {
-                        executeRunners();
-                    } while(playStep());
+                    playStep();
+                    executeRunners();
                 }
             }, model.getPlayDelay(), model.getPlayDelay(), TimeUnit.MILLISECONDS);
-            
+
             fireTimelineModelEvent(new TimelineModelEvent(TimelineModelEvent.EventType.PLAY_START, model, null));
         }
     }
-    
+
     @Override
     public void stopPlay() {
         TimelineModelImpl model = (TimelineModelImpl) getModel();
         if (model != null && model.isPlaying()) {
             model.setPlaying(false);
-            
-        fireTimelineModelEvent(new TimelineModelEvent(TimelineModelEvent.EventType.PLAY_STOP, model, null));
-        if (playExecutor != null)
-            playExecutor.shutdown();
+            fireTimelineModelEvent(new TimelineModelEvent(TimelineModelEvent.EventType.PLAY_STOP, model, null));
+        }
 
+        if (playExecutor != null) {
+            playExecutor.shutdown();
         }
     }
 
     @Override
     public synchronized void addRunner(TimelineModelRunner r) {
-        if (!runners.containsKey(r))
+        runners.clear();
+        if (!runners.containsKey(r)) {
             runners.put(r, null);
+        }
     }
-    
+
     @Override
     public synchronized void removeRunner(TimelineModelRunner r) {
         runners.remove(r);

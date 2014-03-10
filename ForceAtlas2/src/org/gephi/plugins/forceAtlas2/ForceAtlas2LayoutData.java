@@ -55,5 +55,4 @@ public class ForceAtlas2LayoutData implements LayoutData {
     public double old_dx = 0;
     public double old_dy = 0;
     public double mass = 1;
-    public Vector dir;
 }
