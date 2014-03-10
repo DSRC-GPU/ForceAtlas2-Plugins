@@ -6,39 +6,62 @@ import java.util.List;
 import org.gephi.graph.api.Edge;
 import org.gephi.graph.api.Graph;
 import org.gephi.graph.api.GraphModel;
-import org.gephi.layout.spi.LayoutBuilder;
 import org.gephi.layout.spi.LayoutProperty;
 import org.gephi.timeline.api.TimelineController;
-import org.gephi.timeline.api.TimelineModelEvent;
-import org.gephi.timeline.api.TimelineModelListener;
 import org.openide.util.Lookup;
 import org.openide.util.NbBundle;
 
 public class ForceAtlas2_EdgeWeight extends ForceAtlas2 {
 
-    private final ForceAtlas2_EdgeWeightBuilder layoutBuilder;
-    private TimelineController timelineControler;
-    private TimelineModelListener timelineModelListener;
+    private final TimelineController timelineControler;
+    //private TimelineModelListener timelineModelListener;
     private double[] lastInterval;
     private int edgeWeightWindow;
     private GraphModel graphModel;
 
     public ForceAtlas2_EdgeWeight(ForceAtlas2_EdgeWeightBuilder layoutBuilder) {
-        super(null);
-        this.layoutBuilder = layoutBuilder;
+        super(layoutBuilder);
+        timelineControler = Lookup.getDefault().lookup(TimelineController.class);
     }
 
     @Override
     public void initAlgo() {
         super.initAlgo();
         graphModel = super.getGraphModel();
-        timelineControler = Lookup.getDefault().lookup(TimelineController.class);
+        
+        double intervalStart = timelineControler.getModel().getIntervalStart();
+        double intervalEnd = timelineControler.getModel().getIntervalEnd();
 
+        if (lastInterval == null) {
+            lastInterval = new double[]{intervalStart, intervalEnd};
+            return;
+        }
+
+        Graph visibleGraph = graphModel.getGraphVisible();
+        float weight = (float) Math.abs(intervalEnd - lastInterval[1]);
+
+        for (Edge e : graphModel.getGraph().getEdges()) {
+            if (visibleGraph.contains(e) == false) {
+                e.setWeight((float) 1);
+                continue;
+            }
+
+            if (lastInterval[0] > intervalStart && lastInterval[1] > intervalEnd) {
+                float newWeight = e.getWeight() - weight;
+                e.setWeight(newWeight <= 1 ? 1 : newWeight);
+            } else {
+                e.setWeight(Math.min(weight + e.getWeight(), edgeWeightWindow));
+            }
+        }
+        lastInterval = new double[]{intervalStart, intervalEnd};
+
+        /*
         timelineModelListener = new TimelineModelListener() {
-
             @Override
             public void timelineModelChanged(TimelineModelEvent event) {
+                System.err.println("ForceAtlas2_EdgeWeight timelineModelChanged");
                 switch (event.getEventType()) {
+
                     case INTERVAL:
                         double interval[] = (double[]) event.getData();
                         if (lastInterval == null) {
@@ -68,30 +91,29 @@ public class ForceAtlas2_EdgeWeight extends ForceAtlas2 {
                 }
             }
         };
-
         timelineControler.addListener(timelineModelListener);
-    }
-    
-            /*   
-        System.out.println("stats: ");
-        System.out.println("\ttotalSwinging: " + totalSwinging);
-        System.out.println("\ttotalEffectiveTraction: " + totalEffectiveTraction);
-        System.out.println("\ttargetSpeed: " + targetSpeed);
-        System.out.println("\tspeed: " + speed);
-        System.out.println("\ttargetSpeed - speed: " + (targetSpeed - speed));
         */
-    
+    }
+
+    /*   
+     System.out.println("stats: ");
+     System.out.println("\ttotalSwinging: " + totalSwinging);
+     System.out.println("\ttotalEffectiveTraction: " + totalEffectiveTraction);
+     System.out.println("\ttargetSpeed: " + targetSpeed);
+     System.out.println("\tspeed: " + speed);
+     System.out.println("\ttargetSpeed - speed: " + (targetSpeed - speed));
+     */
     @Override
     public void endAlgo() {
         super.endAlgo();
-        timelineControler.removeListener(timelineModelListener);
+        //timelineControler.removeListener(timelineModelListener);
     }
 
     @Override
     public LayoutProperty[] getProperties() {
         final String FORCEATLAS2_EDGEWEIGHTS = NbBundle.getMessage(getClass(), "ForceAtlas2.edgeweights");
-       
-        LayoutProperty[] props = super.getProperties();      
+
+        LayoutProperty[] props = super.getProperties();
         List<LayoutProperty> properties = new ArrayList<LayoutProperty>();
         properties.addAll(Arrays.asList(props));
 
@@ -116,11 +138,6 @@ public class ForceAtlas2_EdgeWeight extends ForceAtlas2 {
     public void resetPropertiesValues() {
         super.resetPropertiesValues();
         setEdgeWeightWindow(5);
-    }
-
-    @Override
-    public LayoutBuilder getBuilder() {
-        return layoutBuilder;
     }
 
     public void setEdgeWeightWindow(Integer edgeWeightWindow) {
