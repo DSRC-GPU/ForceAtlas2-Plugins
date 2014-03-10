@@ -5,33 +5,16 @@
  */
 package org.gephi.plugins.timeline;
 
-import java.lang.reflect.Field;
 import java.util.Iterator;
 import java.util.WeakHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import org.gephi.data.attributes.type.TimeInterval;
-import org.gephi.dynamic.DynamicModelImpl;
-import org.gephi.dynamic.api.DynamicController;
-import org.gephi.dynamic.api.DynamicModel;
-import org.gephi.dynamic.api.DynamicModelEvent;
-import org.gephi.filters.api.FilterController;
-import org.gephi.filters.api.FilterModel;
-import org.gephi.filters.plugin.dynamic.DynamicRangeBuilder;
-import org.gephi.filters.plugin.dynamic.DynamicRangeBuilder.DynamicRangeFilter;
-import org.gephi.filters.spi.FilterBuilder;
-import org.gephi.graph.api.GraphView;
 import org.gephi.timeline.TimelineControllerImpl;
 import org.gephi.timeline.TimelineModelImpl;
-import org.gephi.timeline.api.TimelineController;
 import org.gephi.timeline.api.TimelineModel;
 import org.gephi.timeline.api.TimelineModelEvent;
-import org.openide.util.Exceptions;
-import org.openide.util.Lookup;
-import org.openide.util.lookup.ServiceProvider;
-import org.openide.util.lookup.ServiceProviders;
 
 /*
 @ServiceProviders(value = {
@@ -42,9 +25,6 @@ import org.openide.util.lookup.ServiceProviders;
 public class TimelineControllerRunnerImpl extends TimelineControllerImpl implements TimelineControllerRunner {
 
     private final WeakHashMap<TimelineModelRunner, Void> runners;
-    private FilterController filterController;
-    private FilterModel filterModel;
-    private DynamicController dynamicController;
     private ScheduledExecutorService playExecutor;
 
     public TimelineControllerRunnerImpl() {
